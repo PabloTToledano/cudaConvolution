@@ -11,4 +11,5 @@ Usage:
   -h, --help             Print usage
 
 APIs used:
-cxxopts API by: https://github.com/jarro2783/cxxopts
+
+ -cxxopts API by: https://github.com/jarro2783/cxxopts
