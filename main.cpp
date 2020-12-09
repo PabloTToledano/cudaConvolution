@@ -90,77 +90,97 @@ void sobelFilter(const cv::Mat& input, cv::Mat& output){
 	SAFE_CALL(cudaFree(d_output),"CUDA Free Failed");
 	}
 
-void showMode(){
+void showMode(std::string videoStream){
 	cv::VideoCapture cap;
-	if(!cap.open(0))
-		exit(-1);
+	std::string cameraString = "0";
+	double delayPerFrame = 33.33; //default 33.33ms or 30 fps
+	//Open webcam or video file
+	if(cameraString.compare(videoStream) == 0){
+			if(!cap.open(0))
+			exit(-1);
+	}else{
+			if(!cap.open(videoStream))
+			exit(-1);
+			//calculate delay appropiated for the video
+			delayPerFrame = 1000/cap.get(cv::CAP_PROP_FPS);
+			std::cout << "Video delay per frame: " << std::to_string(delayPerFrame) <<  " FPS: "<< std::to_string(cap.get(cv::CAP_PROP_FPS)) << "\n";
+	}
+
 	cv::Mat frame;
 		while(true)
 		{
 				cap >> frame;
+				if( frame.empty() ) break; // end of video stream
 				cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
 				cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
-				if( frame.empty() ) break; // end of video stream
 				convertToGray(frame,outputFrame);
 				//cv::imshow("Say hello to this desgraciado in grayscale :)", outputFrame);
 				sobelFilter(outputFrame,outputFrameSobel);
 				cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
-
-				if( cv::waitKey(10) == 27 ) break; // close winddow by pressing ESC 
+				if( cv::waitKey(delayPerFrame) == 27 ) break; // close winddow by pressing ESC 
 		}
 		cap.release();
 }
 
-void benchMode(int nFrames){
+void benchMode(std::string videoPath){
 	cv::VideoCapture cap;
-	if(!cap.open(0))
+	if(!cap.open(videoPath))
 		exit(-1);
 	cv::Mat frame;
-	
-		//GPU 
-		auto beginGPU = std::chrono::high_resolution_clock::now();
-		for(int i=0;i<nFrames; i++)
-		{
-				cap >> frame;
-				cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
-				cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
-				if( frame.empty() ) break; // end of video stream
-				convertToGray(frame,outputFrame);
-				sobelFilter(outputFrame,outputFrameSobel);
-				//cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
-				//if( cv::waitKey(10) == 27 ) break; // close winddow by pressing ESC 
+	int totalFrames = 0;
+	//GPU 
+	auto beginGPU = std::chrono::high_resolution_clock::now();
+	while(1)
+	{
+		cap >> frame;
+		cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
+		if( frame.empty() ) break; // end of video stream
+		convertToGray(frame,outputFrame);
+		sobelFilter(outputFrame,outputFrameSobel);
+		//cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
+		//if( cv::waitKey(10) == 27 ) break; // close winddow by pressing ESC 
+		totalFrames++; //total number of frames for fps calc
 		}
-		auto endGPU = std::chrono::high_resolution_clock::now();
-		//CPU
-		auto beginCPU = std::chrono::high_resolution_clock::now();
-		for(int i=0;i<nFrames; i++)
-		{
-				cap >> frame;
-				cv::Mat outputGrayFrame(frame.rows,frame.cols,CV_8UC1);
-				cv::Mat outputSobelFrameX(frame.rows,frame.cols,CV_8UC1);
-				cv::Mat outputSobelFrameY(frame.rows,frame.cols,CV_8UC1);
-				cv::Mat outputSobelFrame(frame.rows,frame.cols,CV_8UC1);
-				if( frame.empty() ) break; // end of video stream
-				cv::cvtColor(frame,outputGrayFrame,cv::COLOR_RGB2GRAY); // == convertToGray(frame,outputFrame) in opencv
-				// == sobelFilter(outputFrame,outputSobelFrame)
-				cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
-    			cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-				cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
-		}
-		auto endCPU = std::chrono::high_resolution_clock::now();
-		cap.release();
-		auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
-		auto elapsedCPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endCPU - beginCPU);
-		printf("Time for %d frames\nGPU time: %.3f seconds.\nCPU time: %.3f seconds.\n",nFrames ,elapsedGPU.count()*1e-9,elapsedCPU.count()*1e-9);
+	auto endGPU = std::chrono::high_resolution_clock::now();
+
+	//CPU
+	auto beginCPU = std::chrono::high_resolution_clock::now();
+	cap.release();
+	if(!cap.open(videoPath)) //open video again for cpu test
+	exit(-1);
+	while(1)
+	{
+		cap >> frame;
+		cv::Mat outputGrayFrame(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrameX(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrameY(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrame(frame.rows,frame.cols,CV_8UC1);
+		if( frame.empty() ) break; // end of video stream
+		cv::cvtColor(frame,outputGrayFrame,cv::COLOR_RGB2GRAY); // == convertToGray(frame,outputFrame) in opencv
+		// == sobelFilter(outputFrame,outputSobelFrame)
+		cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
+    	cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+		cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
+	}	
+	auto endCPU = std::chrono::high_resolution_clock::now();
+	cap.release();
+
+	auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
+	auto elapsedCPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endCPU - beginCPU);
+	double fpsGPU = totalFrames/ (elapsedGPU.count()*1e-9);
+	double fpsCPU = totalFrames/ (elapsedCPU.count()*1e-9);
+	std::cout << "GPU Time: " << std::to_string(elapsedGPU.count()*1e-9) << " FPS: " << std::to_string(fpsGPU) << "\n";
+	std::cout << "CPU Time: " << std::to_string(elapsedCPU.count()*1e-9) << " FPS: " << std::to_string(fpsCPU) << "\n";
 
 }
 
 int main(int argc, char** argv)
 {
-	cxxopts::Options options("Sobel Test", "Computadores Avanzados final commit \n Choose either s or t modes");
+	cxxopts::Options options("Sobel Test", "Computadores Avanzados final assessment \n Choose either s or t modes");
 	options.add_options()
-        ("s,show", "Realtime visualization mode", cxxopts::value<bool>()->default_value("true"))
-        ("t,time", "Show dif between cpu and cuda time for given number of frames, ex: 30", cxxopts::value<int>())
+        ("s,show", "Realtime visualization mode, ex: --show=video.mp4", cxxopts::value<std::string>()->implicit_value("0"))
+        ("t,time", "Show time dif between cpu and cuda time for given video file, ex: testvideo.mp4", cxxopts::value<std::string>())
         ("h,help", "Print usage")
     ;
 	try{
@@ -172,11 +192,11 @@ int main(int argc, char** argv)
 		}
 
 		if (result.count("show")){
-			showMode();
+			showMode(result["s"].as<std::string>());
 		}
 
 		if (result.count("time")){
-			benchMode(result["t"].as<int>());
+			benchMode(result["t"].as<std::string>());
 		}
 
 	}catch(cxxopts::OptionException e){
