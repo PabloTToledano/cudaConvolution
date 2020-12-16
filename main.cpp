@@ -70,11 +70,27 @@ void sobelFilter(const cv::Mat& input, cv::Mat& output){
 	SAFE_CALL(cudaFree(deviceInput),"CUDA Free Error");
 	SAFE_CALL(cudaFree(deviceOutput),"CUDA Free Error");
 }
+int openVideo(cv::VideoCapture& cap,std::string videoPath){
+	const std::string cameraString = "0";
+	int videoFPS = 30;
+	//Open webcam or video file
+	if(cameraString.compare(videoPath) == 0){
+			if(!cap.open(0))
+			exit(-1);
+	}else{
+			if(!cap.open(videoPath))
+			exit(-1);
+			videoFPS =cap.get(cv::CAP_PROP_FPS);
+	}
+	return videoFPS;
+}
 
-void applyFilterVideoGPU(std::string videoPath){
+void applyFilterVideoGPU(std::string videoPath, bool show){
 	cv::VideoCapture cap;
-	if(!cap.open(videoPath))
-		exit(-1);
+	int videoFPS = openVideo(cap,videoPath);
+
+	double delayPerFrame = 1000/videoFPS;
+	std::cout << "Video delay per frame: " << std::to_string(delayPerFrame) <<  " FPS: "<< std::to_string(videoFPS) << "\n";
 	cv::Mat frame;
 	while(1)
 	{
@@ -86,15 +102,22 @@ void applyFilterVideoGPU(std::string videoPath){
 
 		convertToGray(frame,outputFrame);
 		sobelFilter(outputFrame,outputFrameSobel);
+
+		if(show){
+			//cv::resize(outputFrameSobel,outputFrameSobel,cv::Size(1280,720));
+			cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
+			if( cv::waitKey(delayPerFrame) == 27 ) break; // close winddow by pressing ESC 
 		}
+	}
 
 	cap.release();
 }
 
-void applyFilterVideoCPU(std::string videoPath){
+void applyFilterVideoCPU(std::string videoPath, bool show){
 	cv::VideoCapture cap;
-	if(!cap.open(videoPath)) 
-	exit(-1);
+	openVideo(cap,videoPath);
+
+	double delayPerFrame = 1000/cap.get(cv::CAP_PROP_FPS);
 	cv::Mat frame;
 	while(1)
 	{
@@ -102,21 +125,28 @@ void applyFilterVideoCPU(std::string videoPath){
 		if( frame.empty() ) break; // end of video stream
 
 		cv::Mat outputGrayFrame(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrameX(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrameY(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrame(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputFrameSobelX(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputFrameSobelY(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
 
 		cv::cvtColor(frame,outputGrayFrame,cv::COLOR_RGB2GRAY); // == convertToGray(frame,outputFrame) in opencv
 
-		// == sobelFilter(outputFrame,outputSobelFrame)
-		cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
-    	cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-		cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
+		// == sobelFilter(outputFrame,outputFrameSobel)
+		cv::Sobel(outputGrayFrame, outputFrameSobelX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
+    	cv::Sobel(outputGrayFrame, outputFrameSobelY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+		cv::addWeighted(outputFrameSobelX, 0.5, outputFrameSobelY, 0.5, 0, outputFrameSobel);
+		
+		if(show){
+			cv::resize(outputFrameSobel,outputFrameSobel,cv::Size(1280,720));
+			cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
+			if( cv::waitKey(delayPerFrame) == 27 ) break; // close winddow by pressing ESC 
+		}
+
 	} 	
 	cap.release();
 }
 
-void photoMode(std::string photoPath){
+void photoMode(std::string photoPath,std::string outPath){
 	cv::Mat photo = cv::imread(photoPath);
 	cv::Mat outputGray(photo.rows,photo.cols,CV_8UC1);
 	cv::Mat outputSobel(photo.rows,photo.cols,CV_8UC1);
@@ -127,51 +157,17 @@ void photoMode(std::string photoPath){
 	auto endGPU = std::chrono::high_resolution_clock::now();
 	auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
 	std::cout << "GPU Time: " << std::to_string(elapsedGPU.count()*1e-9) << "\n";
-	cv::imshow("Say hello to this desgraciado in line mode :)", outputSobel);
-	cv::waitKey(0) == 27;  // close winddow by pressing ESC 
-
-}
-
-void showMode(std::string videoStream){
-	cv::VideoCapture cap;
-	std::string cameraString = "0";
-	double delayPerFrame = 33.33; //default 33.33ms or 30 fps
-	//Open webcam or video file
-	if(cameraString.compare(videoStream) == 0){
-			if(!cap.open(0))
-			exit(-1);
-	}else{
-			if(!cap.open(videoStream))
-			exit(-1);
-			//calculate delay appropiated for the video
-			delayPerFrame = 1000/cap.get(cv::CAP_PROP_FPS);
-			std::cout << "Video delay per frame: " << std::to_string(delayPerFrame) <<  " FPS: "<< std::to_string(cap.get(cv::CAP_PROP_FPS)) << "\n";
-	}
-
-	cv::Mat frame;
-		while(true)
-		{
-				cap >> frame;
-				if( frame.empty() ) break; // end of video stream
-				cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
-				cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
-				convertToGray(frame,outputFrame);
-				//cv::imshow("Say hello to this desgraciado in grayscale :)", outputFrame);
-				sobelFilter(outputFrame,outputFrameSobel);
-				cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
-				if( cv::waitKey(delayPerFrame) == 27 ) break; // close winddow by pressing ESC 
-		}
-		cap.release();
+	cv::imwrite(outPath, outputSobel);
 }
 
 void benchMode(std::string videoPath){
 
 	auto beginGPU = std::chrono::high_resolution_clock::now();
-	applyFilterVideoGPU(videoPath);
+	applyFilterVideoGPU(videoPath,false);
 	auto endGPU = std::chrono::high_resolution_clock::now();
 
 	auto beginCPU = std::chrono::high_resolution_clock::now();
-	applyFilterVideoCPU(videoPath);
+	applyFilterVideoCPU(videoPath,false);
 	auto endCPU = std::chrono::high_resolution_clock::now();
 
 	auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
@@ -184,8 +180,8 @@ void benchMode(std::string videoPath){
 	double fpsGPU = totalFrames/ (elapsedGPU.count()*1e-9);
 	double fpsCPU = totalFrames/ (elapsedCPU.count()*1e-9);
 
-	std::cout << "GPU Time: " << std::to_string(elapsedGPU.count()*1e-9) << " FPS: " << std::to_string(fpsGPU) << "\n";
-	std::cout << "CPU Time: " << std::to_string(elapsedCPU.count()*1e-9) << " FPS: " << std::to_string(fpsCPU) << "\n";
+	std::cout << "[GPU]"<< "\n" << "\tTime: " << std::to_string(elapsedGPU.count()*1e-9) << "\n\tFPS: " << std::to_string(fpsGPU) << "\n";
+	std::cout << "[CPU]"<< "\n" << "\tTime: " << std::to_string(elapsedCPU.count()*1e-9) << "\n\tFPS: " << std::to_string(fpsCPU) << "\n";
 
 }
 
@@ -193,30 +189,38 @@ int main(int argc, char** argv)
 {
 	cxxopts::Options options("Sobel Test", "Computadores Avanzados final assessment \n Choose either s or t modes");
 	options.add_options()
-        ("s,show", "Realtime visualization mode, ex: --show=video.mp4", cxxopts::value<std::string>()->implicit_value("0"))
+        ("s,show", "Realtime video visualization mode, ex: --show=video.mp4", cxxopts::value<std::string>()->implicit_value("0"))
         ("p,photo", "Proccess a photo file, ex: photo.jpg", cxxopts::value<std::string>())
-		("t,time", "Show time dif between cpu and cuda time for given video file, ex: testvideo.mp4", cxxopts::value<std::string>())
+		("t,time", "Shows time dif between cpu and cuda time for a given video file, ex: testvideo.mp4", cxxopts::value<std::string>())
+		("o,out", "Output name for photo file, ex: out.jpg", cxxopts::value<std::string>()->implicit_value("o.jpg"))
         ("h,help", "Print usage")
     ;
 	try{
 		auto result = options.parse(argc, argv);
 
 		if (result.count("help")){
-		std::cout << options.help() << std::endl;
-		exit(0);
+			std::cout << options.help() << std::endl;
+			exit(0);
 		}
 
 		if (result.count("photo")){
-			photoMode(result["p"].as<std::string>());
+			if (result.count("out")){
+				photoMode(result["p"].as<std::string>(),result["o"].as<std::string>());
+			}else{
+				photoMode(result["p"].as<std::string>(),"o.jpg");
+			}
+
 			exit(0);
 		}
 
 		if (result.count("show")){
-			showMode(result["s"].as<std::string>());
+			applyFilterVideoGPU(result["s"].as<std::string>(),true);
+			exit(0);
 		}
 
 		if (result.count("time")){
 			benchMode(result["t"].as<std::string>());
+			exit(0);
 		}
 
 	}catch(cxxopts::OptionException e){
