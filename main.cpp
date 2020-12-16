@@ -78,7 +78,6 @@ void applyFilterVideoGPU(std::string videoPath){
 	cv::Mat frame;
 	while(1)
 	{
-		auto begin = std::chrono::high_resolution_clock::now();
 		cap >> frame;
 		if( frame.empty() ) break; // end of video stream
 
@@ -87,13 +86,8 @@ void applyFilterVideoGPU(std::string videoPath){
 
 		convertToGray(frame,outputFrame);
 		sobelFilter(outputFrame,outputFrameSobel);
-
-		auto end = std::chrono::high_resolution_clock::now();
-		auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
-		float fps = 1/(elapsed.count()*1e-9);
-		std::cout << "[GPU FPS]: "<< std::to_string(fps) << '\r' << std::flush;
 		}
-		std::cout << "[GPU FPS]: "<< std::to_string(fps) << '\n'
+
 	cap.release();
 }
 
@@ -104,7 +98,6 @@ void applyFilterVideoCPU(std::string videoPath){
 	cv::Mat frame;
 	while(1)
 	{
-		auto begin = std::chrono::high_resolution_clock::now();
 		cap >> frame;
 		if( frame.empty() ) break; // end of video stream
 
@@ -119,13 +112,7 @@ void applyFilterVideoCPU(std::string videoPath){
 		cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
     	cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
 		cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
-
-		auto end = std::chrono::high_resolution_clock::now();
-		auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
-		float fps = 1/(elapsed.count()*1e-9);
-		std::cout << "[CPU FPS]: "<< std::to_string(fps) << '\r' << std::flush;
-	}
-	std::cout << "[CPU FPS]: "<< std::to_string(fps) << '\n' 	
+	} 	
 	cap.release();
 }
 
