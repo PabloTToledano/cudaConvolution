@@ -8,7 +8,7 @@ extern "C" void cuda_grayscale(unsigned char* input,
     int height,
     int colorWidthStep,
     int grayWidthStep, 
-    dim3 blocks, 
+    dim3 grid, 
     dim3 block_size);
 
 extern "C" void cuda_Sobel(unsigned char *input,
@@ -16,5 +16,5 @@ extern "C" void cuda_Sobel(unsigned char *input,
     int width, 
     int height,
     unsigned int maskWidth, 
-    dim3 blocks, 
+    dim3 grid, 
     dim3 block_size);

@@ -13,7 +13,7 @@ static inline void _safe_cuda_call(cudaError err, const char* msg, const char* f
 {
 	if(err!=cudaSuccess)
 	{
-		fprintf(stderr,"%s\n\nFile: %s\n\nLine Number: %d\n\nReason: %s\n",msg,file_name,line_number,cudaGetErrorString(err));
+		std::cerr << msg << "\nFile: " << file_name << "\nLine: " << line_number << "\nError: " << cudaGetErrorString(err);
 		std::cin.get();
 		exit(EXIT_FAILURE);
 	}
@@ -23,72 +23,127 @@ static inline void _safe_cuda_call(cudaError err, const char* msg, const char* f
 
 
 void convertToGray(const cv::Mat& input, cv::Mat& output){
-	//Calculate total number of bytes of input and output image
-	const int colorBytes = input.step * input.rows;
-	const int grayBytes = output.step * output.rows;
 
-	unsigned char *d_input, *d_output;
+	const int inputBytes = input.step * input.rows;
+	const int outputBytes = output.step * output.rows;
 
-	//Allocate device memory
-	SAFE_CALL(cudaMalloc<unsigned char>(&d_input,colorBytes),"CUDA Malloc Failed");
-	SAFE_CALL(cudaMalloc<unsigned char>(&d_output,grayBytes),"CUDA Malloc Failed");
+	unsigned char *deviceInput, *deviceOutput;
 
-	//Copy data from OpenCV input image to device memory
-	SAFE_CALL(cudaMemcpy(d_input,input.ptr(),colorBytes,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
+	SAFE_CALL(cudaMalloc<unsigned char>(&deviceInput,inputBytes),"CUDA Malloc Error");
+	SAFE_CALL(cudaMalloc<unsigned char>(&deviceOutput,outputBytes),"CUDA Malloc Error");
 
-	//Specify a reasonable block size
+	SAFE_CALL(cudaMemcpy(deviceInput,input.ptr(),inputBytes,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Error");
+
 	const dim3 block(16,16);
-
-	//Calculate grid size to cover the whole image
 	const dim3 grid((input.cols + block.x - 1)/block.x, (input.rows + block.y - 1)/block.y);
 
-	//Launch the color conversion kernel
-	cuda_grayscale(d_input,d_output,input.cols,input.rows,input.step,output.step,grid,block);
+	cuda_grayscale(deviceInput,deviceOutput,input.cols,input.rows,input.step,output.step,grid,block);
 
-	//Synchronize to check for any kernel launch errors
-	SAFE_CALL(cudaDeviceSynchronize(),"Kernel Launch Failed");
+	SAFE_CALL(cudaDeviceSynchronize(),"Kernel Launch Error");
 
-	//Copy back data from destination device meory to OpenCV output image
-	SAFE_CALL(cudaMemcpy(output.ptr(),d_output,grayBytes,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
+	SAFE_CALL(cudaMemcpy(output.ptr(),deviceOutput,outputBytes,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Error");
 
-	//Free the device memory
-	SAFE_CALL(cudaFree(d_input),"CUDA Free Failed");
-	SAFE_CALL(cudaFree(d_output),"CUDA Free Failed");
-	}
+	SAFE_CALL(cudaFree(deviceInput),"CUDA Free Error");
+	SAFE_CALL(cudaFree(deviceOutput),"CUDA Free Error");
+}
 
 void sobelFilter(const cv::Mat& input, cv::Mat& output){
-			//Calculate total number of bytes of input and output image
-	const int colorBytes = input.step * input.rows;
-	const int grayBytes = output.step * output.rows;
+	const int inputBytes = input.step * input.rows;
+	const int outputBytes = output.step * output.rows;
 
-	unsigned char *d_input, *d_output;
+	unsigned char *deviceInput, *deviceOutput;
 
-	//Allocate device memory
-	SAFE_CALL(cudaMalloc<unsigned char>(&d_input,colorBytes),"CUDA Malloc Failed");
-	SAFE_CALL(cudaMalloc<unsigned char>(&d_output,grayBytes),"CUDA Malloc Failed");
+	SAFE_CALL(cudaMalloc<unsigned char>(&deviceInput,inputBytes),"CUDA Malloc Error");
+	SAFE_CALL(cudaMalloc<unsigned char>(&deviceOutput,outputBytes),"CUDA Malloc Error");
 
-	//Copy data from OpenCV input image to device memory
-	SAFE_CALL(cudaMemcpy(d_input,input.ptr(),colorBytes,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Failed");
+	SAFE_CALL(cudaMemcpy(deviceInput,input.ptr(),inputBytes,cudaMemcpyHostToDevice),"CUDA Memcpy Host To Device Error");
 
-	//Specify a reasonable block size
 	const dim3 block(16,16);
-
-	//Calculate grid size to cover the whole image
 	const dim3 grid((input.cols + block.x - 1)/block.x, (input.rows + block.y - 1)/block.y);
 
-	//Launch the color conversion kernel
-	cuda_Sobel(d_input,d_output,input.cols,input.rows,3,grid,block);
+	cuda_Sobel(deviceInput,deviceOutput,input.cols,input.rows,3,grid,block);
 
-	//Synchronize to check for any kernel launch errors
-	SAFE_CALL(cudaDeviceSynchronize(),"Kernel Launch Failed");
+	SAFE_CALL(cudaDeviceSynchronize(),"Kernel Launch Error");
 
-	//Copy back data from destination device meory to OpenCV output image
-	SAFE_CALL(cudaMemcpy(output.ptr(),d_output,grayBytes,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Failed");
+	SAFE_CALL(cudaMemcpy(output.ptr(),deviceOutput,outputBytes,cudaMemcpyDeviceToHost),"CUDA Memcpy Host To Device Error");
 
-	//Free the device memory
-	SAFE_CALL(cudaFree(d_input),"CUDA Free Failed");
-	SAFE_CALL(cudaFree(d_output),"CUDA Free Failed");
+	SAFE_CALL(cudaFree(deviceInput),"CUDA Free Error");
+	SAFE_CALL(cudaFree(deviceOutput),"CUDA Free Error");
+}
+
+void applyFilterVideoGPU(std::string videoPath){
+	cv::VideoCapture cap;
+	if(!cap.open(videoPath))
+		exit(-1);
+	cv::Mat frame;
+	while(1)
+	{
+		auto begin = std::chrono::high_resolution_clock::now();
+		cap >> frame;
+		if( frame.empty() ) break; // end of video stream
+
+		cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
+
+		convertToGray(frame,outputFrame);
+		sobelFilter(outputFrame,outputFrameSobel);
+
+		auto end = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+		float fps = 1/(elapsed.count()*1e-9);
+		std::cout << "[GPU FPS]: "<< std::to_string(fps) << '\r' << std::flush;
+		}
+		std::cout << "[GPU FPS]: "<< std::to_string(fps) << '\n'
+	cap.release();
+}
+
+void applyFilterVideoCPU(std::string videoPath){
+	cv::VideoCapture cap;
+	if(!cap.open(videoPath)) 
+	exit(-1);
+	cv::Mat frame;
+	while(1)
+	{
+		auto begin = std::chrono::high_resolution_clock::now();
+		cap >> frame;
+		if( frame.empty() ) break; // end of video stream
+
+		cv::Mat outputGrayFrame(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrameX(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrameY(frame.rows,frame.cols,CV_8UC1);
+		cv::Mat outputSobelFrame(frame.rows,frame.cols,CV_8UC1);
+
+		cv::cvtColor(frame,outputGrayFrame,cv::COLOR_RGB2GRAY); // == convertToGray(frame,outputFrame) in opencv
+
+		// == sobelFilter(outputFrame,outputSobelFrame)
+		cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
+    	cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
+		cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
+
+		auto end = std::chrono::high_resolution_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+		float fps = 1/(elapsed.count()*1e-9);
+		std::cout << "[CPU FPS]: "<< std::to_string(fps) << '\r' << std::flush;
 	}
+	std::cout << "[CPU FPS]: "<< std::to_string(fps) << '\n' 	
+	cap.release();
+}
+
+void photoMode(std::string photoPath){
+	cv::Mat photo = cv::imread(photoPath);
+	cv::Mat outputGray(photo.rows,photo.cols,CV_8UC1);
+	cv::Mat outputSobel(photo.rows,photo.cols,CV_8UC1);
+
+	auto beginGPU = std::chrono::high_resolution_clock::now();
+	convertToGray(photo,outputGray);
+	sobelFilter(outputGray,outputSobel);
+	auto endGPU = std::chrono::high_resolution_clock::now();
+	auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
+	std::cout << "GPU Time: " << std::to_string(elapsedGPU.count()*1e-9) << "\n";
+	cv::imshow("Say hello to this desgraciado in line mode :)", outputSobel);
+	cv::waitKey(0) == 27;  // close winddow by pressing ESC 
+
+}
 
 void showMode(std::string videoStream){
 	cv::VideoCapture cap;
@@ -123,53 +178,25 @@ void showMode(std::string videoStream){
 }
 
 void benchMode(std::string videoPath){
-	cv::VideoCapture cap;
-	if(!cap.open(videoPath))
-		exit(-1);
-	cv::Mat frame;
-	int totalFrames = 0;
-	//GPU 
+
 	auto beginGPU = std::chrono::high_resolution_clock::now();
-	while(1)
-	{
-		cap >> frame;
-		cv::Mat outputFrame(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputFrameSobel(frame.rows,frame.cols,CV_8UC1);
-		if( frame.empty() ) break; // end of video stream
-		convertToGray(frame,outputFrame);
-		sobelFilter(outputFrame,outputFrameSobel);
-		//cv::imshow("Say hello to this desgraciado in line mode :)", outputFrameSobel);
-		//if( cv::waitKey(10) == 27 ) break; // close winddow by pressing ESC 
-		totalFrames++; //total number of frames for fps calc
-		}
+	applyFilterVideoGPU(videoPath);
 	auto endGPU = std::chrono::high_resolution_clock::now();
 
-	//CPU
 	auto beginCPU = std::chrono::high_resolution_clock::now();
-	cap.release();
-	if(!cap.open(videoPath)) //open video again for cpu test
-	exit(-1);
-	while(1)
-	{
-		cap >> frame;
-		cv::Mat outputGrayFrame(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrameX(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrameY(frame.rows,frame.cols,CV_8UC1);
-		cv::Mat outputSobelFrame(frame.rows,frame.cols,CV_8UC1);
-		if( frame.empty() ) break; // end of video stream
-		cv::cvtColor(frame,outputGrayFrame,cv::COLOR_RGB2GRAY); // == convertToGray(frame,outputFrame) in opencv
-		// == sobelFilter(outputFrame,outputSobelFrame)
-		cv::Sobel(outputGrayFrame, outputSobelFrameX, CV_8UC1, 1, 0, 1, 1, 0, cv::BORDER_DEFAULT); 
-    	cv::Sobel(outputGrayFrame, outputSobelFrameY, CV_8UC1, 0, 1, 1, 1, 0, cv::BORDER_DEFAULT);
-		cv::addWeighted(outputSobelFrameX, 0.5, outputSobelFrameY, 0.5, 0, outputSobelFrame);
-	}	
+	applyFilterVideoCPU(videoPath);
 	auto endCPU = std::chrono::high_resolution_clock::now();
-	cap.release();
 
 	auto elapsedGPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endGPU - beginGPU);
 	auto elapsedCPU = std::chrono::duration_cast<std::chrono::nanoseconds>(endCPU - beginCPU);
+	cv::VideoCapture cap;
+	cap.open(videoPath);
+	int totalFrames = cap.get(cv::CAP_PROP_FRAME_COUNT);
+
+
 	double fpsGPU = totalFrames/ (elapsedGPU.count()*1e-9);
 	double fpsCPU = totalFrames/ (elapsedCPU.count()*1e-9);
+
 	std::cout << "GPU Time: " << std::to_string(elapsedGPU.count()*1e-9) << " FPS: " << std::to_string(fpsGPU) << "\n";
 	std::cout << "CPU Time: " << std::to_string(elapsedCPU.count()*1e-9) << " FPS: " << std::to_string(fpsCPU) << "\n";
 
@@ -180,7 +207,8 @@ int main(int argc, char** argv)
 	cxxopts::Options options("Sobel Test", "Computadores Avanzados final assessment \n Choose either s or t modes");
 	options.add_options()
         ("s,show", "Realtime visualization mode, ex: --show=video.mp4", cxxopts::value<std::string>()->implicit_value("0"))
-        ("t,time", "Show time dif between cpu and cuda time for given video file, ex: testvideo.mp4", cxxopts::value<std::string>())
+        ("p,photo", "Proccess a photo file, ex: photo.jpg", cxxopts::value<std::string>())
+		("t,time", "Show time dif between cpu and cuda time for given video file, ex: testvideo.mp4", cxxopts::value<std::string>())
         ("h,help", "Print usage")
     ;
 	try{
@@ -189,6 +217,11 @@ int main(int argc, char** argv)
 		if (result.count("help")){
 		std::cout << options.help() << std::endl;
 		exit(0);
+		}
+
+		if (result.count("photo")){
+			photoMode(result["p"].as<std::string>());
+			exit(0);
 		}
 
 		if (result.count("show")){
