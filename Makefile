@@ -12,9 +12,10 @@ CUDAFLAGS+=-deviceemu
 endif
 
 all:
-	$(CXX) $(CFLAGS) -c main.cpp -o Debug/main.o
-	nvcc $(CUDAFLAGS) -c cudaKernels.cu -o Debug/cudaKernels.o
-	$(CXX) $(LDFLAGS) Debug/main.o Debug/cudaKernels.o -o Debug/grayscale
+	$(CXX) $(CFLAGS) -c src/main.cpp -o Debug/main.o
+	$(CXX) $(CFLAGS) -c src/cudaFilter.cpp -o Debug/cudaFilter.o
+	nvcc $(CUDAFLAGS) -c src/cudaKernels.cu -o Debug/cudaKernels.o
+	$(CXX) $(LDFLAGS) Debug/main.o Debug/cudaKernels.o Debug/cudaFilter.o -o Debug/grayscale
 
 clean:
 	rm -f Debug/*.o Debug/grayscale

@@ -1,14 +1,14 @@
-# cudaConvolution
 Usage:
   Sobel Test [OPTION...]
 
+  -s, --show [=arg(=0)]     Realtime video visualization mode, ex:
+                            --show=video.mp4
+  -p, --photo arg           Proccess a photo file, ex: photo.jpg
+  -t, --time arg            Shows time dif between cpu and cuda time for a
+                            given video file, ex: testvideo.mp4
+  -o, --out [=arg(=o.jpg)]  Output name for photo file, ex: out.jpg
+  -h, --help                Print usage
 
-  -s, --show [=arg(=0)]  Realtime visualization mode, ex: --show=video.mp4
-  
-  -t, --time arg         Show time dif between cpu and cuda time for given
-                         video file, ex: testvideo.mp4
-                         
-  -h, --help             Print usage
 
 APIs used:
 
