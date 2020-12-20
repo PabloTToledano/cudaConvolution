@@ -16,9 +16,16 @@ Usage:
 Examples:
 
 cudaConvolution -v testData/testvideo.mp4 -g
+
 cudaConvolution -p testData/mountain.jpg -g
+
 cudaConvolution -s
+
 cudaConvolution -show=testData/testvideo.mp4
+
+
+
+Note:
 
 When in --show mode, you can hit the ESC key to close the app.
 
