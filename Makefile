@@ -15,7 +15,7 @@ all:
 	$(CXX) $(CFLAGS) -c src/main.cpp -o Debug/main.o
 	$(CXX) $(CFLAGS) -c src/cudaFilter.cpp -o Debug/cudaFilter.o
 	nvcc $(CUDAFLAGS) -c src/cudaKernels.cu -o Debug/cudaKernels.o
-	$(CXX) $(LDFLAGS) Debug/main.o Debug/cudaKernels.o Debug/cudaFilter.o -o Debug/grayscale
+	$(CXX) $(LDFLAGS) Debug/main.o Debug/cudaKernels.o Debug/cudaFilter.o -o Debug/cudaConvolution
 
 clean:
 	rm -f Debug/*.o Debug/grayscale
