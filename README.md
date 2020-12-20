@@ -13,6 +13,8 @@ Usage:
 
   -h, --help                Print usage
 
+
+
 Examples:
 
 cudaConvolution -v testData/testvideo.mp4 -g
