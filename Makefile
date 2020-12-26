@@ -18,5 +18,5 @@ all:
 	$(CXX) $(LDFLAGS) Debug/main.o Debug/cudaKernels.o Debug/cudaFilter.o -o Debug/cudaConvolution
 
 clean:
-	rm -f Debug/*.o Debug/grayscale
+	rm -f Debug/*.o Debug/cudaFilters
 
