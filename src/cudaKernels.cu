@@ -20,6 +20,7 @@ __global__ void rgb_to_grayscale( unsigned char* imageInput,
     //Only valid threads
     if((xIndex<width) && (yIndex<height))
     {
+        //Location of pixel in imageInput
         const int yIndexor_tid = yIndex * yIndexorWidthStep + (3 * xIndex);
 
         //Location of gray pixel in imageOutput

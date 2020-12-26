@@ -192,7 +192,7 @@ void benchVideoMode(std::string videoPath,bool blur){
 
 int main(int argc, char** argv)
 {
-	cxxopts::Options options("Sobel Test", "Computadores Avanzados final assessment \n Choose either s or t modes");
+	cxxopts::Options options("Sobel Test", "Computadores Avanzados final assessment \n");
 	options.add_options()
         ("s,show", "Realtime video visualization mode, ex: --show=video.mp4", cxxopts::value<std::string>()->implicit_value("0"))
         ("p,photo", "Proccess a photo file, ex: photo.jpg", cxxopts::value<std::string>())
